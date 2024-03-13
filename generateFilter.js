@@ -41,7 +41,7 @@ for (
 	else clipData[currentClipIndex].length++;
 }
 
-console.log(
+const filter =
 	clipData
 		.map(
 			(clipDatum, index) =>
@@ -52,6 +52,8 @@ console.log(
 				},setpts=PTS-STARTPTS[v${index}];`
 		)
 		.join("") +
-		clipData.map((d, index) => `[v${index}]`).join("") +
-		`concat=n=${clipData.length}:a=0:v=1[out]`
-);
+	clipData.map((d, index) => `[v${index}]`).join("") +
+	`concat=n=${clipData.length}:a=0:v=1[out]`;
+
+// Return by logging
+console.log(filter);
