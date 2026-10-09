@@ -23,9 +23,29 @@ if test -f $OUTPUT_FILE; then
     exit
 fi
 
-read -p "Enter left video channel path: " VIDEO_L
-read -p "Enter right video channel path: " VIDEO_R
-read -p "Enter audio path: " AUDIO
+# Prompt for the number of videos in each channel
+read -p "Enter the number of L channel videos: " NUM_L
+read -p "Enter the number of R channel videos: " NUM_R
+
+# Initialize arrays to store the video paths
+VIDEO_L=()
+VIDEO_R=()
+
+# Read L channel video paths
+echo "Enter paths for $NUM_L L channel videos:"
+for ((i=1; i<=NUM_L; i++)); do
+    read -e -p "Enter path for L video $i: " path
+    VIDEO_L+=("$path")
+done
+
+# Read R channel video paths
+echo "Enter paths for $NUM_R R channel videos:"
+for ((i=1; i<=NUM_R; i++)); do
+    read -e -p "Enter path for R video $i: " path
+    VIDEO_R+=("$path")
+done
+
+read -e -p "Enter audio path: " AUDIO
 
 while true; do
     read -p "If $TMP_DIRECTORY exists, it will be removed. Is this okay? (y/N) " yn
@@ -44,17 +64,36 @@ AUDIO_L_WAVEFORM_DATA="$TMP_DIRECTORY/audio-L-waveform-data.json"
 AUDIO_R_WAVEFORM_DATA="$TMP_DIRECTORY/audio-R-waveform-data.json"
 
 echo "Splitting audio channels"
-ffmpeg-bar -i $AUDIO -map_channel 0.0.0 $AUDIO_L -map_channel 0.0.1 $AUDIO_R
+ffmpeg-bar -i "$AUDIO" -filter_complex "[0:a]pan=mono|c0=c0[audio_l]; [0:a]pan=mono|c0=c1[audio_r]" -map "[audio_l]" "$AUDIO_L" -map "[audio_r]" "$AUDIO_R"
 
 echo "Ascertaining waveform data"
 audiowaveform -i $AUDIO_L -o $AUDIO_L_WAVEFORM_DATA --bits 8 --pixels-per-second $SAMPLE_RATE --height 256
 audiowaveform -i $AUDIO_R -o $AUDIO_R_WAVEFORM_DATA --bits 8 --pixels-per-second $SAMPLE_RATE --height 256
 
-COMPLEX_FILTER=$(node "$DIRNAME/generateFilter.js" -l $AUDIO_L_WAVEFORM_DATA -r $AUDIO_R_WAVEFORM_DATA)
+COMPLEX_FILTER=$(node "$DIRNAME/generateFilter.js" -l $AUDIO_L_WAVEFORM_DATA -r $AUDIO_R_WAVEFORM_DATA -y $NUM_L -z $NUM_R)
 VIDEO_SILENT="$TMP_DIRECTORY/video-silent.mov"
 
+# Initialize input arguments
+INPUT_ARGS=()
+
+# Add L channel inputs
+for path in "${VIDEO_L[@]}"; do
+    INPUT_ARGS+=("-i" "$path")
+done
+
+# Add R channel inputs
+for path in "${VIDEO_R[@]}"; do
+    INPUT_ARGS+=("-i" "$path")
+done
+
 echo "Splicing clips"
-ffmpeg-bar -i $VIDEO_R -i $VIDEO_L -filter_complex $COMPLEX_FILTER -map "[out]" -codec:v libx264 -crf $COMPRESSION_LEVEL -preset $COMPRESSION_SPEED $VIDEO_SILENT
+ffmpeg-bar "${INPUT_ARGS[@]}" \
+    -filter_complex "$COMPLEX_FILTER" \
+    -map "[out]" \
+    -codec:v h264_videotoolbox \
+    -crf "$COMPRESSION_LEVEL" \
+    -preset "$COMPRESSION_SPEED" \
+    "$VIDEO_SILENT"
 
 AUDIO_MONO="$TMP_DIRECTORY/audio-mono.aac"
 
@@ -62,9 +101,9 @@ echo "Creating mono audio file"
 ffmpeg-bar -i $AUDIO -ac 1 -acodec aac $AUDIO_MONO
 
 echo "Combining video and audio"
-ffmpeg-bar -i $VIDEO_SILENT -i $AUDIO_MONO -map 0:v -map 1:a "$DIRNAME/output.mov"
+ffmpeg-bar -i $VIDEO_SILENT -i $AUDIO_MONO -map 0:v -map 1:a "$OUTPUT_FILE"
 
 echo "Cleanup"
 rm -r $TMP_DIRECTORY
 
-echo "Processing complete. Find the video at $DIRNAME/output.mov"
+echo "Processing complete. Find the video at $OUTPUT_FILE"

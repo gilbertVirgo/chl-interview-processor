@@ -18,6 +18,8 @@ Then export the compound clips using `cmd+E`.
 
 `./run.sh`
 
+N.B! - the files must be within this directory, whether at the top level, or lower—e.g. `./chaddick/L.mov`.
+
 # Setting it up on your system
 
 You'll need to build ffmpeg with gpl and libx264.
@@ -30,3 +32,9 @@ brew install yasm
 ./configure --enable-gpl --enable-libx264
 make install # this took AGES!
 ```
+
+# Troubleshooting
+
+Things often go wrong. Not sure why at this stage.
+
+One thing to note is that `ffmpeg-bar` doesn't yield any error messages. When debugging, wherever you see `ffmpeg-bar`, just replace it with `ffmpeg` and the errors will show up.
